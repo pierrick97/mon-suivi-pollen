@@ -1,17 +1,16 @@
 [theme]
-# La couleur principale (utilisée pour les boutons, les barres de progression, etc.)
-# Ici, un beau vert "Nature"
+# On force le thème sombre de base (c'est la formule magique !)
+base = "dark"
+
+# On garde notre vert "Nature" pour les boutons et les barres de progression
 primaryColor = "#4CAF50"
 
-# La couleur de fond principal de l'application (blanc pur)
-backgroundColor = "#FFFFFF"
+# Couleurs de fond spécifiques au mode sombre
+backgroundColor = "#0E1117"
+secondaryBackgroundColor = "#262730"
 
-# La couleur de fond secondaire (utilisée pour les encadrés et la barre latérale)
-# Un gris très très clair, presque bleuté, pour un effet "médical/propre"
-secondaryBackgroundColor = "#F0F2F6"
+# Texte en blanc/gris très clair pour un contraste parfait sans éblouir
+textColor = "#FAFAFA"
 
-# La couleur du texte principal (Gris anthracite pour une lecture douce sans fatiguer les yeux)
-textColor = "#262730"
-
-# La police d'écriture (options: "sans serif", "serif", "monospace")
+# On garde une police moderne et claire
 font = "sans serif"
