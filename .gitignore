@@ -1,0 +1,24 @@
+# 1. Fichiers système macOS (très polluants sur GitHub)
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# 2. Fichiers Python générés automatiquement
+__pycache__/
+*.py[cod]
+*.so
+
+# 3. Environnements virtuels (si tu en utilises un jour)
+venv/
+env/
+.venv/
+
+# 4. Fichiers de données locaux (puisque tout est sur Google Sheets maintenant)
+journal.csv
+profil.json
+
+# 5. SÉCURITÉ : On bloque tous les fichiers JSON pour ne jamais fuiter la clé Google Cloud !
+*.json
+
+# 6. Fichiers de secrets Streamlit locaux
+.streamlit/secrets.toml
