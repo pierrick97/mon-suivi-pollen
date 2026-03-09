@@ -1,25 +1,40 @@
 import streamlit as st
 import pandas as pd
-import os
 from datetime import date
 import json
 import requests
 import plotly.express as px
+import gspread # NOUVEL OUTIL POUR GOOGLE SHEETS
 
 from utils import calculer_indice_pollen, calculer_indice_polluant, evaluer_qualite_air
 
 # 1. Configuration de la page web
 st.set_page_config(page_title="Mon Suivi Pollen", page_icon="🤧", layout="centered")
 
-# --- CHARGEMENT DU PROFIL ---
-fichier_profil = "profil.json"
-profil_data = {"ville": "Lyon", "allergies": []}
+# --- CONNEXION À GOOGLE SHEETS ---
+# st.cache_resource permet de ne pas se reconnecter à Google à chaque clic
+@st.cache_resource
+def init_gspread():
+    # On récupère le JSON caché dans le coffre-fort Streamlit
+    creds_json = st.secrets["google_credentials"]
+    creds_dict = json.loads(creds_json)
+    return gspread.service_account_from_dict(creds_dict)
 
-if os.path.exists(fichier_profil):
-    with open(fichier_profil, "r") as f:
-        profil_data = json.load(f)
+gc = init_gspread()
+# On ouvre ton fichier par son nom exact
+sheet = gc.open("Base_Pollen")
+ws_journal = sheet.worksheet("Journal")
+ws_profil = sheet.worksheet("Profil")
 
-ville_actuelle = profil_data.get("ville", "Lyon")
+# --- CHARGEMENT DU PROFIL DEPUIS GOOGLE SHEETS ---
+records_profil = ws_profil.get_all_records()
+if len(records_profil) > 0:
+    ville_actuelle = str(records_profil[0].get("ville", "Lyon"))
+    allergies_brutes = str(records_profil[0].get("allergies", ""))
+    allergies_actuelles = [a.strip() for a in allergies_brutes.split(",")] if allergies_brutes else []
+else:
+    ville_actuelle = "Lyon"
+    allergies_actuelles = []
 
 # 2. Titre principal
 st.title("🌿 Mon Suivi Allergies & Pollen")
@@ -95,19 +110,11 @@ with tab1:
             # ---> SOUS-ONGLET POLLUTION
             with sous_tab2:
                 st.subheader("Qualité de l'air actuelle")
-                
-                # --- RETOUR DU SCORE GLOBAL ---
                 aqi_actuel = donnees_actuelles.get('european_aqi', 0)
                 statut_aqi, _ = evaluer_qualite_air(aqi_actuel)
-                # On isole juste le mot (ex: "Bon") du texte "Bon (1/5)" pour l'affichage visuel
                 mot_statut = statut_aqi.split(" ")[0]
                 
-                st.metric(
-                    label="Indice Européen Global (AQI)", 
-                    value=f"{int(aqi_actuel)}", 
-                    delta=mot_statut, 
-                    delta_color="inverse" if aqi_actuel > 60 else "normal"
-                )
+                st.metric(label="Indice Européen Global (AQI)", value=f"{int(aqi_actuel)}", delta=mot_statut, delta_color="inverse" if aqi_actuel > 60 else "normal")
                 
                 st.write("---")
                 st.write("**Détail par polluant (Échelle de 1 à 5) :**")
@@ -140,13 +147,7 @@ with tab1:
                         aqi_prev = row.get('european_aqi', 0)
                         statut_prev, _ = evaluer_qualite_air(aqi_prev)
                         mot_statut_prev = statut_prev.split(" ")[0]
-                        st.metric(
-                            label="AQI Max estimé", 
-                            value=int(aqi_prev), 
-                            delta=mot_statut_prev, 
-                            delta_color="inverse" if aqi_prev > 60 else "normal"
-                        )
-
+                        st.metric(label="AQI Max estimé", value=int(aqi_prev), delta=mot_statut_prev, delta_color="inverse" if aqi_prev > 60 else "normal")
         else:
             st.error(f"Impossible de trouver les coordonnées pour la ville : {ville_actuelle}.")
             
@@ -187,26 +188,22 @@ with tab2:
         soumis = st.form_submit_button("💾 Enregistrer mon journal")
 
         if soumis:
-            nouvelle_entree = pd.DataFrame([{
-                "Date": date_saisie,
-                "Meteo": meteo,
-                "Activite_Exterieure": activite,
-                "Qualite_Sommeil": sommeil,
-                "Symptomes_Globaux": symptomes_globaux,
-                "Symptomes_Specifiques": ", ".join(symptomes_specifiques),
-                "Traitement_Pris": "Oui" if traitement_pris else "Non",
-                "Type_Traitement": ", ".join(type_traitement),
-                "Nom_Medicament": nom_medicament,
-                "Moment_Prise": ", ".join(moment_prise),
-                "Duree_Traitement": duree_traitement
-            }])
-
-            fichier_csv = "journal.csv"
-            if os.path.exists(fichier_csv):
-                nouvelle_entree.to_csv(fichier_csv, mode='a', header=False, index=False)
-            else:
-                nouvelle_entree.to_csv(fichier_csv, index=False)
-            st.success("🎉 Tes données ont bien été enregistrées !")
+            # On envoie les données directement dans l'onglet "Journal" du Google Sheets !
+            nouvelle_ligne = [
+                str(date_saisie),
+                meteo,
+                activite,
+                sommeil,
+                symptomes_globaux,
+                ", ".join(symptomes_specifiques),
+                "Oui" if traitement_pris else "Non",
+                ", ".join(type_traitement),
+                nom_medicament,
+                ", ".join(moment_prise),
+                duree_traitement
+            ]
+            ws_journal.append_row(nouvelle_ligne)
+            st.success("🎉 Tes données ont bien été enregistrées en ligne dans ton Google Sheets !")
 
 # --- CONTENU DE L'ONGLET 3 : HISTORIQUE ET PROFIL ---
 with tab3:
@@ -214,25 +211,27 @@ with tab3:
     
     st.subheader("Mes paramètres")
     with st.form("formulaire_profil"):
-        ville = st.text_input("📍 Ma ville", value=profil_data.get("ville", "Lyon"))
+        ville = st.text_input("📍 Ma ville", value=ville_actuelle)
         liste_allergenes = ["Bouleau", "Graminées", "Ambroisie", "Aulne", "Olivier", "Armoise", "Acariens", "Poils d'animaux"]
-        allergies_sauvegardees = [a for a in profil_data.get("allergies", []) if a in liste_allergenes]
-        allergies = st.multiselect("🤧 Je suis sensible à :", liste_allergenes, default=allergies_sauvegardees)
+        allergies = st.multiselect("🤧 Je suis sensible à :", liste_allergenes, default=[a for a in allergies_actuelles if a in liste_allergenes])
         
         submit_profil = st.form_submit_button("💾 Sauvegarder mon profil")
         if submit_profil:
-            nouveau_profil = {"ville": ville, "allergies": allergies}
-            with open(fichier_profil, "w") as f:
-                json.dump(nouveau_profil, f)
-            st.success("Ton profil a été mis à jour !")
+            # On efface l'ancien profil et on enregistre le nouveau
+            ws_profil.clear()
+            ws_profil.append_row(["ville", "allergies"]) # On remet les en-têtes
+            ws_profil.append_row([ville, ", ".join(allergies)])
+            st.success("Ton profil a été mis à jour dans le Cloud !")
             st.info("💡 Pense à rafraîchir la page pour mettre à jour les alertes de ta ville.")
 
     st.divider()
     
     st.subheader("📊 Évolution de mes symptômes")
-    fichier_csv = "journal.csv"
-    if os.path.exists(fichier_csv) and os.path.getsize(fichier_csv) > 0:
-        df = pd.read_csv(fichier_csv)
+    # On lit les données depuis Google Sheets
+    records_journal = ws_journal.get_all_records()
+    
+    if len(records_journal) > 0:
+        df = pd.DataFrame(records_journal)
         df['Date'] = pd.to_datetime(df['Date'])
         df = df.sort_values(by='Date')
 
@@ -253,9 +252,18 @@ with tab3:
             with st.form("form_suppression"):
                 date_choisie = st.selectbox("Sélectionne la date de l'entrée à supprimer :", ["Choisir..."] + dates_disponibles)
                 bouton_supprimer = st.form_submit_button("❌ Supprimer définitivement")
+                
                 if bouton_supprimer and date_choisie != "Choisir...":
+                    # On garde tout ce qui ne correspond pas à la date choisie
                     df_filtre = df[df['Date'].dt.strftime('%Y-%m-%d') != date_choisie]
-                    df_filtre.to_csv(fichier_csv, index=False)
+                    df_filtre['Date'] = df_filtre['Date'].dt.strftime('%Y-%m-%d') # On remet la date en texte pour Google Sheets
+                    
+                    # On efface tout l'onglet et on le remplit avec les données filtrées
+                    ws_journal.clear()
+                    en_tetes = df_filtre.columns.values.tolist()
+                    valeurs = df_filtre.values.tolist()
+                    ws_journal.update([en_tetes] + valeurs)
+                    
                     st.success(f"L'entrée du {date_choisie} a été supprimée avec succès !")
                     st.rerun() 
     else:
