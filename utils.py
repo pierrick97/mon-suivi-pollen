@@ -38,16 +38,16 @@ def recuperer_donnees_atmo(endpoint="/api/v2/data/indices/atmo"):
     if not token:
         return {"erreur": "Impossible de générer le token. Regarde l'erreur rouge au-dessus !"}
     
-    # 1. On récupère la date du jour au format attendu par Atmo (AAAA-MM-JJ)
-    aujourd_hui = datetime.date.today().strftime("%Y-%m-%d")
+    # 1. On recule d'un jour car Atmo met à jour entre 13h et 15h !
+    hier = (datetime.date.today() - datetime.timedelta(days=1)).strftime("%Y-%m-%d")
     
-    # 2. On cible Lyon (69123) et la date d'aujourd'hui (astuce de la FAQ)
-    url = f"https://admindata.atmo-france.org{endpoint}?code_zone=69123&date_ech={aujourd_hui}&withGeom=false"
+    # 2. On cible Lyon (69123) et la date d'hier
+    url = f"https://admindata.atmo-france.org{endpoint}?code_zone=69123&date_ech={hier}&withGeom=false"
     headers = {"Authorization": f"Bearer {token}"}
     
     try:
-        # On ajoute un "timeout" de 10 secondes pour que Python ne tourne pas dans le vide
-        reponse = requests.get(url, headers=headers, timeout=10) 
+        # 3. On laisse 30 secondes au serveur pour réfléchir au lieu de 10
+        reponse = requests.get(url, headers=headers, timeout=30) 
         if reponse.status_code == 200:
             return reponse.json()
         else:
@@ -55,6 +55,7 @@ def recuperer_donnees_atmo(endpoint="/api/v2/data/indices/atmo"):
     except Exception as e:
         return {"erreur": str(e)}
 
+        
 # --- ALGORITHMES DE NORMALISATION ---
 def calculer_indice_pollen(valeur_brute):
     if pd.isna(valeur_brute) or valeur_brute <= 0: return 0
