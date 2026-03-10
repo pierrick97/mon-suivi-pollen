@@ -5,6 +5,7 @@ import json
 import requests
 import plotly.express as px
 import gspread # NOUVEL OUTIL POUR GOOGLE SHEETS
+from utils import recuperer_donnees_atmo, generer_conseils
 
 from utils import calculer_indice_pollen, calculer_indice_polluant, evaluer_qualite_air
 
@@ -148,6 +149,29 @@ with tab1:
                         statut_prev, _ = evaluer_qualite_air(aqi_prev)
                         mot_statut_prev = statut_prev.split(" ")[0]
                         st.metric(label="AQI Max estimé", value=int(aqi_prev), delta=mot_statut_prev, delta_color="inverse" if aqi_prev > 60 else "normal")
+
+                st.divider()
+                st.subheader("💡 Conseils Santé du Jour")
+                # On génère les conseils intelligents
+                liste_conseils = generer_conseils("Ensoleillé", risque_max_actuel, risque_max_pollution)
+                for conseil in liste_conseils:
+                    st.info(conseil)
+
+                st.divider()
+                st.subheader("🇫🇷 Test Connexion Atmo France")
+                if st.button("Tester l'API Atmo"):
+                    with st.spinner("Génération du Token et connexion en cours..."):
+                        # On appelle notre nouvelle fonction !
+                        donnees_officielles = recuperer_donnees_atmo()
+                        
+                        if "erreur" in donnees_officielles:
+                            st.error(donnees_officielles["erreur"])
+                        else:
+                            st.success("Connexion réussie ! Voici à quoi ressemblent les données :")
+                            # On affiche les données brutes pour les analyser
+                            st.json(donnees_officielles)
+
+
         else:
             st.error(f"Impossible de trouver les coordonnées pour la ville : {ville_actuelle}.")
             
