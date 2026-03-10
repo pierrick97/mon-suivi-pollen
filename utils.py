@@ -126,3 +126,27 @@ def generer_conseils(meteo, risque_pollen, risque_pollution):
     conseils.append("🪟 **Maison :** N'oublie pas : 10 min d'aération pour renouveler l'air d'une pièce.")
     
     return conseils
+
+
+def extraire_donnees_atmo(json_brut):
+    """Extrait les informations essentielles du JSON d'Atmo France."""
+    try:
+        # On vérifie que la boîte "features" existe et n'est pas vide
+        if "features" in json_brut and len(json_brut["features"]) > 0:
+            # On va chercher le trésor dans "properties"
+            donnees = json_brut["features"][0]["properties"]
+            
+            return {
+                "ville": donnees.get("lib_zone", "Inconnue"),
+                "date": donnees.get("date_ech", "Inconnue"),
+                "qualite_texte": donnees.get("lib_qual", "Inconnu"),
+                "qualite_note": donnees.get("code_qual", 0),
+                "pm10_note": donnees.get("code_pm10", 0),
+                "pm25_note": donnees.get("code_pm25", 0),
+                "no2_note": donnees.get("code_no2", 0),
+                "o3_note": donnees.get("code_o3", 0)
+            }
+        else:
+            return None
+    except Exception as e:
+        return None

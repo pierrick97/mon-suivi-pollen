@@ -5,7 +5,7 @@ import json
 import requests
 import plotly.express as px
 import gspread # NOUVEL OUTIL POUR GOOGLE SHEETS
-from utils import calculer_indice_pollen, calculer_indice_polluant, evaluer_qualite_air, recuperer_donnees_atmo, generer_conseils
+from utils import calculer_indice_pollen, calculer_indice_polluant, evaluer_qualite_air, recuperer_donnees_atmo, generer_conseils, extraire_donnees_atmo
 
 # 1. Configuration de la page web
 st.set_page_config(page_title="Mon Suivi Pollen", page_icon="🤧", layout="centered")
@@ -156,18 +156,30 @@ with tab1:
                     st.info(conseil)
 
                 st.divider()
-                st.subheader("🇫🇷 Test Connexion Atmo France")
-                if st.button("Tester l'API Atmo"):
-                    with st.spinner("Génération du Token et connexion en cours..."):
-                        # On appelle notre nouvelle fonction !
-                        donnees_officielles = recuperer_donnees_atmo()
+                st.subheader("🇫🇷 Données Officielles Atmo France (Lyon)")
+                
+                with st.spinner("Récupération des données officielles..."):
+                    donnees_json = recuperer_donnees_atmo()
+                    
+                    if "erreur" in donnees_json:
+                        st.error(donnees_json["erreur"])
+                    else:
+                        donnees_propres = extraire_donnees_atmo(donnees_json)
                         
-                        if "erreur" in donnees_officielles:
-                            st.error(donnees_officielles["erreur"])
+                        if donnees_propres:
+                            st.success(f"Données du {donnees_propres['date']} pour {donnees_propres['ville']}")
+                            
+                            # Affichage du score global
+                            st.metric(label="Indice ATMO Global", value=donnees_propres['qualite_texte'], delta=f"Note : {donnees_propres['qualite_note']}/6", delta_color="inverse")
+                            
+                            # Affichage détaillé en colonnes
+                            col1, col2, col3, col4 = st.columns(4)
+                            col1.metric("Particules PM10", f"Note: {donnees_propres['pm10_note']}")
+                            col2.metric("Particules PM2.5", f"Note: {donnees_propres['pm25_note']}")
+                            col3.metric("Dioxyde d'Azote (NO2)", f"Note: {donnees_propres['no2_note']}")
+                            col4.metric("Ozone (O3)", f"Note: {donnees_propres['o3_note']}")
                         else:
-                            st.success("Connexion réussie ! Voici à quoi ressemblent les données :")
-                            # On affiche les données brutes pour les analyser
-                            st.json(donnees_officielles)
+                            st.warning("Les données sont vides ou mal formatées.")
 
 
         else:
