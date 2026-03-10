@@ -5,7 +5,7 @@ import json
 import requests
 import plotly.express as px
 import gspread # NOUVEL OUTIL POUR GOOGLE SHEETS
-from utils import calculer_indice_pollen, calculer_indice_polluant, evaluer_qualite_air, recuperer_donnees_atmo, generer_conseils, extraire_donnees_atmo, recuperer_donnees_pollen
+from utils import calculer_indice_pollen, calculer_indice_polluant, evaluer_qualite_air, recuperer_donnees_atmo, generer_conseils, extraire_donnees_atmo, extraire_donnees_pollen   
 
 # 1. Configuration de la page web
 st.set_page_config(page_title="Mon Suivi Pollen", page_icon="🤧", layout="centered")
@@ -107,17 +107,34 @@ with tab1:
                         st.metric(label="Pollen Max", value=f"{pire_indice_jour} / 5")
 
                 st.divider()
-                st.subheader("🤧 Test Connexion Pollen Atmo")
-                if st.button("Tester l'API Pollen"):
-                    with st.spinner("Recherche des pollens en cours..."):
-                        donnees_pollen = recuperer_donnees_pollen()
+                st.subheader("🤧 Données Officielles Pollen (RNSA / Atmo)")
+                
+                with st.spinner("Analyse des capteurs de pollens..."):
+                    donnees_brutes = recuperer_donnees_pollen()
+                    
+                    if "erreur" in donnees_brutes:
+                        st.error(donnees_brutes["erreur"])
+                    elif "features" in donnees_brutes and len(donnees_brutes["features"]) == 0:
+                        st.info("🌿 Aucun relevé pollinique n'a été publié pour cette zone à cette date.")
+                    else:
+                        donnees_propres = extraire_donnees_pollen(donnees_brutes)
                         
-                        if "erreur" in donnees_pollen:
-                            st.error(donnees_pollen["erreur"])
-                        else:
-                            st.success("Connexion réussie ! Voici le rapport pollinique du Rhône :")
-                            # On affiche le JSON brut pour l'analyser
-                            st.json(donnees_pollen)
+                        if donnees_propres:
+                            # Gestion de l'alerte rouge
+                            if donnees_propres['alerte']:
+                                st.error(f"⚠️ ALERTE POLLEN EN COURS : Forte présence de {donnees_propres['responsable']} !")
+                            else:
+                                st.success(f"Données du {donnees_propres['date']} pour {donnees_propres['ville']}")
+                            
+                            # Affichage du score global
+                            st.metric(label="Risque Pollinique Global", value=donnees_propres['risque_global'], delta=f"Niveau {donnees_propres['risque_note']}/5", delta_color="inverse")
+                            
+                            # Affichage détaillé par espèce
+                            col1, col2, col3, col4 = st.columns(4)
+                            col1.metric("Aulne", f"Niveau {donnees_propres['aulne']}")
+                            col2.metric("Bouleau", f"Niveau {donnees_propres['bouleau']}")
+                            col3.metric("Graminées", f"Niveau {donnees_propres['graminees']}")
+                            col4.metric("Ambroisie", f"Niveau {donnees_propres['ambroisie']}")
 
             # ---> SOUS-ONGLET POLLUTION
             with sous_tab2:

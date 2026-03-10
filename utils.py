@@ -71,8 +71,8 @@ def recuperer_donnees_pollen():
     # On cible hier pour éviter les soucis de mise à jour l'après-midi
     hier = (datetime.date.today() - datetime.timedelta(days=1)).strftime("%Y-%m-%d")
     
-    # On utilise l'ID 122 (Pollen) et le département 69 (Rhône)
-    filtre_json = '{"code_zone":{"operator":"=","value":"69"},"date_ech":{"operator":"=","value":"' + hier + '"}}'
+    # On utilise l'ID 122 (Pollen) et le code zone (commune) 69123 (Lyon)
+    filtre_json = '{"code_zone":{"operator":"=","value":"69123"},"date_ech":{"operator":"=","value":"' + hier + '"}}'
     url = f"https://admindata.atmo-france.org/api/data/122/{filtre_json}?withGeom=false"
     
     headers = {"Authorization": f"Bearer {token}"}
@@ -174,6 +174,30 @@ def extraire_donnees_atmo(json_brut):
                 "pm25_note": donnees.get("code_pm25", 0),
                 "no2_note": donnees.get("code_no2", 0),
                 "o3_note": donnees.get("code_o3", 0)
+            }
+        else:
+            return None
+    except Exception as e:
+        return None
+
+
+def extraire_donnees_pollen(json_brut):
+    """Extrait les niveaux de pollens du JSON d'Atmo France."""
+    try:
+        if "features" in json_brut and len(json_brut["features"]) > 0:
+            donnees = json_brut["features"][0]["properties"]
+            
+            return {
+                "ville": donnees.get("lib_zone", "Inconnue"),
+                "date": donnees.get("date_ech", "Inconnue"),
+                "risque_global": donnees.get("lib_qual", "Inconnu"),
+                "risque_note": donnees.get("code_qual", 0),
+                "alerte": donnees.get("alerte", False),
+                "responsable": donnees.get("pollen_resp", "Aucun"),
+                "aulne": donnees.get("code_aul", 0),
+                "bouleau": donnees.get("code_boul", 0),
+                "graminees": donnees.get("code_gram", 0),
+                "ambroisie": donnees.get("code_ambr", 0)
             }
         else:
             return None
