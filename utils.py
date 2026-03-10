@@ -37,8 +37,8 @@ def recuperer_donnees_atmo(endpoint="/api/v2/data/indices/atmo"):
     if not token:
         return {"erreur": "Impossible de générer le token. Regarde l'erreur rouge au-dessus !"}
     
-    # Astuce de la FAQ : on ajoute ?withGeom=false pour que ce soit plus rapide
-    url = f"https://admindata.atmo-france.org{endpoint}?withGeom=false"
+    # On ajoute le code région 84 (Auvergne-Rhône-Alpes) et on désactive la cartographie pour aller plus vite
+    url = f"https://admindata.atmo-france.org{endpoint}?aasqa=84&withGeom=false"
     headers = {"Authorization": f"Bearer {token}"}
     
     try:
