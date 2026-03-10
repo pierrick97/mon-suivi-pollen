@@ -141,6 +141,7 @@ def extraire_donnees_atmo(json_brut):
                 "date": donnees.get("date_ech", "Inconnue"),
                 "qualite_texte": donnees.get("lib_qual", "Inconnu"),
                 "qualite_note": donnees.get("code_qual", 0),
+                "couleur": donnees.get("coul_qual", "#ffffff"),
                 "pm10_note": donnees.get("code_pm10", 0),
                 "pm25_note": donnees.get("code_pm25", 0),
                 "no2_note": donnees.get("code_no2", 0),

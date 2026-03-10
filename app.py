@@ -169,14 +169,23 @@ with tab1:
                         if donnees_propres:
                             st.success(f"Données du {donnees_propres['date']} pour {donnees_propres['ville']}")
                             
-                            # Affichage du score global
-                            st.metric(label="Indice ATMO Global", value=donnees_propres['qualite_texte'], delta=f"Note : {donnees_propres['qualite_note']}/6", delta_color="inverse")
+                            # 🎨 Création d'une carte HTML avec la couleur officielle dynamique
+                            st.markdown(
+                                f"""
+                                <div style="text-align: center; padding: 20px; border-radius: 10px; background-color: #1e1e1e; border: 2px solid {donnees_propres['couleur']}; box-shadow: 0px 4px 6px rgba(0,0,0,0.3);">
+                                    <h2 style="color: {donnees_propres['couleur']}; margin: 0; font-size: 2.5em;">{donnees_propres['qualite_texte']}</h2>
+                                    <p style="color: #dddddd; margin: 5px 0 0 0; font-size: 1.2em;">Indice ATMO Global : {donnees_propres['qualite_note']} / 6</p>
+                                </div>
+                                <br>
+                                """,
+                                unsafe_allow_html=True
+                            )
                             
-                            # Affichage détaillé en colonnes
+                            # Affichage détaillé en colonnes (inchangé)
                             col1, col2, col3, col4 = st.columns(4)
                             col1.metric("Particules PM10", f"Note: {donnees_propres['pm10_note']}")
                             col2.metric("Particules PM2.5", f"Note: {donnees_propres['pm25_note']}")
-                            col3.metric("Dioxyde d'Azote (NO2)", f"Note: {donnees_propres['no2_note']}")
+                            col3.metric("Dioxyde d'Azote", f"Note: {donnees_propres['no2_note']}")
                             col4.metric("Ozone (O3)", f"Note: {donnees_propres['o3_note']}")
                         else:
                             st.warning("Les données sont vides ou mal formatées.")
