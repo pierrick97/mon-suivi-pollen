@@ -5,9 +5,7 @@ import json
 import requests
 import plotly.express as px
 import gspread # NOUVEL OUTIL POUR GOOGLE SHEETS
-from utils import recuperer_donnees_atmo, generer_conseils
-
-from utils import calculer_indice_pollen, calculer_indice_polluant, evaluer_qualite_air
+from utils import calculer_indice_pollen, calculer_indice_polluant, evaluer_qualite_air, recuperer_donnees_atmo, generer_conseils
 
 # 1. Configuration de la page web
 st.set_page_config(page_title="Mon Suivi Pollen", page_icon="🤧", layout="centered")
