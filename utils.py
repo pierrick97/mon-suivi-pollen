@@ -61,6 +61,34 @@ def recuperer_donnees_atmo():
     except Exception as e:
         return {"erreur": str(e)}
 
+@st.cache_data(ttl=3600)
+def recuperer_donnees_pollen():
+    """Utilise le token pour télécharger les données officielles de pollen (ID 122)."""
+    token = obtenir_token_atmo()
+    if not token:
+        return {"erreur": "Token invalide."}
+    
+    # On cible hier pour éviter les soucis de mise à jour l'après-midi
+    hier = (datetime.date.today() - datetime.timedelta(days=1)).strftime("%Y-%m-%d")
+    
+    # On utilise l'ID 122 (Pollen) et le département 69 (Rhône)
+    filtre_json = '{"code_zone":{"operator":"=","value":"69"},"date_ech":{"operator":"=","value":"' + hier + '"}}'
+    url = f"https://admindata.atmo-france.org/api/data/122/{filtre_json}?withGeom=false"
+    
+    headers = {"Authorization": f"Bearer {token}"}
+    
+    try:
+        reponse = requests.get(url, headers=headers, timeout=30) 
+        if reponse.status_code == 200:
+            try:
+                return reponse.json()
+            except ValueError:
+                return {"erreur": "Le serveur n'a pas renvoyé de JSON."}
+        else:
+            return {"erreur": f"Code {reponse.status_code}"}
+    except Exception as e:
+        return {"erreur": str(e)}
+
 
 # --- ALGORITHMES DE NORMALISATION ---
 def calculer_indice_pollen(valeur_brute):
@@ -152,30 +180,3 @@ def extraire_donnees_atmo(json_brut):
     except Exception as e:
         return None
 
-@st.cache_data(ttl=3600)
-def recuperer_donnees_pollen():
-    """Utilise le token pour télécharger les données officielles de pollen (ID 122)."""
-    token = obtenir_token_atmo()
-    if not token:
-        return {"erreur": "Token invalide."}
-    
-    # On cible hier pour éviter les soucis de mise à jour l'après-midi
-    hier = (datetime.date.today() - datetime.timedelta(days=1)).strftime("%Y-%m-%d")
-    
-    # On utilise l'ID 122 (Pollen) et le département 69 (Rhône)
-    filtre_json = '{"code_zone":{"operator":"=","value":"69"},"date_ech":{"operator":"=","value":"' + hier + '"}}'
-    url = f"https://admindata.atmo-france.org/api/data/122/{filtre_json}?withGeom=false"
-    
-    headers = {"Authorization": f"Bearer {token}"}
-    
-    try:
-        reponse = requests.get(url, headers=headers, timeout=30) 
-        if reponse.status_code == 200:
-            try:
-                return reponse.json()
-            except ValueError:
-                return {"erreur": "Le serveur n'a pas renvoyé de JSON."}
-        else:
-            return {"erreur": f"Code {reponse.status_code}"}
-    except Exception as e:
-        return {"erreur": str(e)}
