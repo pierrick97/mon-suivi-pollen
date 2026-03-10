@@ -5,7 +5,7 @@ import json
 import requests
 import plotly.express as px
 import gspread # NOUVEL OUTIL POUR GOOGLE SHEETS
-from utils import calculer_indice_pollen, calculer_indice_polluant, evaluer_qualite_air, recuperer_donnees_atmo, generer_conseils, extraire_donnees_atmo
+from utils import calculer_indice_pollen, calculer_indice_polluant, evaluer_qualite_air, recuperer_donnees_atmo, generer_conseils, extraire_donnees_atmo, recuperer_donnees_pollen
 
 # 1. Configuration de la page web
 st.set_page_config(page_title="Mon Suivi Pollen", page_icon="🤧", layout="centered")
@@ -105,6 +105,19 @@ with tab1:
                         st.write(f"**{row['Date'].strftime('%d/%m')}**")
                         pire_indice_jour = max([calculer_indice_pollen(row.get(k, 0)) for k in traduction_pollens.keys()])
                         st.metric(label="Pollen Max", value=f"{pire_indice_jour} / 5")
+
+                st.divider()
+                st.subheader("🤧 Test Connexion Pollen Atmo")
+                if st.button("Tester l'API Pollen"):
+                    with st.spinner("Recherche des pollens en cours..."):
+                        donnees_pollen = recuperer_donnees_pollen()
+                        
+                        if "erreur" in donnees_pollen:
+                            st.error(donnees_pollen["erreur"])
+                        else:
+                            st.success("Connexion réussie ! Voici le rapport pollinique du Rhône :")
+                            # On affiche le JSON brut pour l'analyser
+                            st.json(donnees_pollen)
 
             # ---> SOUS-ONGLET POLLUTION
             with sous_tab2:
