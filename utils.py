@@ -1,6 +1,7 @@
 import pandas as pd
 import requests
 import streamlit as st
+import datetime
 
 # --- CONNEXION AUTOMATIQUE À ATMO FRANCE ---
 @st.cache_data(ttl=3600)
@@ -37,12 +38,16 @@ def recuperer_donnees_atmo(endpoint="/api/v2/data/indices/atmo"):
     if not token:
         return {"erreur": "Impossible de générer le token. Regarde l'erreur rouge au-dessus !"}
     
-    # On ajoute le code région 84 (Auvergne-Rhône-Alpes) et on désactive la cartographie pour aller plus vite
-    url = f"https://admindata.atmo-france.org{endpoint}?aasqa=84&withGeom=false"
+    # 1. On récupère la date du jour au format attendu par Atmo (AAAA-MM-JJ)
+    aujourd_hui = datetime.date.today().strftime("%Y-%m-%d")
+    
+    # 2. On cible Lyon (69123) et la date d'aujourd'hui (astuce de la FAQ)
+    url = f"https://admindata.atmo-france.org{endpoint}?code_zone=69123&date_ech={aujourd_hui}&withGeom=false"
     headers = {"Authorization": f"Bearer {token}"}
     
     try:
-        reponse = requests.get(url, headers=headers)
+        # On ajoute un "timeout" de 10 secondes pour que Python ne tourne pas dans le vide
+        reponse = requests.get(url, headers=headers, timeout=10) 
         if reponse.status_code == 200:
             return reponse.json()
         else:
