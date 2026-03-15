@@ -25,6 +25,16 @@ sheet = gc.open("Base_Pollen")
 ws_journal = sheet.worksheet("Journal")
 ws_profil = sheet.worksheet("Profil")
 
+# --- VÉRIFICATION DES EN-TÊTES DU JOURNAL ---
+EN_TETES_JOURNAL = [
+    "Date", "Meteo", "Activite", "Sommeil", "Symptomes_Globaux",
+    "Symptomes_Specifiques", "Traitement_Pris", "Type_Traitement",
+    "Nom_Medicament", "Moment_Prise", "Duree_Traitement"
+]
+# Si la feuille est vide, on insère les en-têtes automatiquement
+if not ws_journal.get_all_values():
+    ws_journal.append_row(EN_TETES_JOURNAL)
+
 # --- CHARGEMENT DU PROFIL DEPUIS GOOGLE SHEETS ---
 records_profil = ws_profil.get_all_records()
 if len(records_profil) > 0:
