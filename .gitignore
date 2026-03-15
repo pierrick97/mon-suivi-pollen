@@ -16,6 +16,7 @@ env/
 # 4. Fichiers de données locaux (puisque tout est sur Google Sheets maintenant)
 journal.csv
 profil.json
+Plan d'amélioration continue d'application.gsheet
 
 # 5. SÉCURITÉ : On bloque tous les fichiers JSON pour ne jamais fuiter la clé Google Cloud !
 *.json
