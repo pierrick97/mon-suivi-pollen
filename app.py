@@ -2,10 +2,9 @@ import streamlit as st
 import pandas as pd
 from datetime import date
 import json
-import requests
 import plotly.express as px
-import gspread # NOUVEL OUTIL POUR GOOGLE SHEETS
-from utils import calculer_indice_pollen, calculer_indice_polluant, evaluer_qualite_air, recuperer_donnees_atmo, recuperer_donnees_pollen, generer_conseils, extraire_donnees_atmo, extraire_donnees_pollen, obtenir_code_insee
+import gspread
+from utils import recuperer_donnees_atmo, recuperer_donnees_pollen, generer_conseils, extraire_donnees_atmo, extraire_donnees_pollen, obtenir_code_insee
 
 # 1. Configuration de la page web
 st.set_page_config(page_title="Mon Suivi Pollen", page_icon="🤧", layout="centered")
@@ -60,187 +59,93 @@ tab1, tab2, tab3 = st.tabs(["🚨 Mes Alertes", "📝 Mon Journal", "👤 Mon Pr
 # --- CONTENU DE L'ONGLET 1 : ALERTES & PRÉVISIONS ---
 with tab1:
     st.header(f"Conditions à {ville_actuelle}")
-    
+
     col_btn, _ = st.columns([1, 3])
     with col_btn:
         if st.button("🔄 Actualiser"):
             st.rerun()
 
-    try:
-        url_geo = f"https://geocoding-api.open-meteo.com/v1/search?name={ville_actuelle}&count=1&language=fr&format=json"
-        reponse_geo = requests.get(url_geo).json()
-        
-        if "results" in reponse_geo:
-            lat = reponse_geo["results"][0]["latitude"]
-            lon = reponse_geo["results"][0]["longitude"]
-            
-            variables_pollens = "birch_pollen,grass_pollen,ragweed_pollen,mugwort_pollen,alder_pollen,olive_pollen"
-            variables_pollution = "european_aqi,pm10,pm2_5,nitrogen_dioxide,ozone"
-            
-            url_data = f"https://air-quality-api.open-meteo.com/v1/air-quality?latitude={lat}&longitude={lon}&current={variables_pollens},{variables_pollution}&hourly={variables_pollens},{variables_pollution}&timezone=auto&forecast_days=4"
-            reponse_data = requests.get(url_data).json()
-            
-            donnees_actuelles = reponse_data.get("current", {})
-            df_horaire = pd.DataFrame(reponse_data.get("hourly", {}))
-            df_horaire['time'] = pd.to_datetime(df_horaire['time'])
-            df_horaire['Date'] = df_horaire['time'].dt.date
-            
-            df_previsions = df_horaire.groupby('Date').max().reset_index()
-            df_previsions = df_previsions[df_previsions['Date'] > date.today()].head(3)
+    # Initialisation des variables pour les conseils (fallback si API indisponible)
+    donnees_pollen = None
+    donnees_atmo = None
 
-            sous_tab1, sous_tab2 = st.tabs(["🤧 Pollens", "🌫️ Pollution"])
-            
-            # ---> SOUS-ONGLET POLLENS
-            with sous_tab1:
-                st.subheader("Niveaux de pollen actuels")
-                traduction_pollens = {
-                    "birch_pollen": "Bouleau", "grass_pollen": "Graminées",
-                    "ragweed_pollen": "Ambroisie", "mugwort_pollen": "Armoise",
-                    "alder_pollen": "Aulne", "olive_pollen": "Olivier"
-                }
-                
-                risque_max_actuel = 0 
-                for cle_api, nom_fr in traduction_pollens.items():
-                    valeur_brute = donnees_actuelles.get(cle_api, 0)
-                    indice = calculer_indice_pollen(valeur_brute)
-                    if indice > risque_max_actuel: risque_max_actuel = indice
-                    
-                    col1, col2, col3 = st.columns([2, 1, 4])
-                    col1.write(f"**{nom_fr}**")
-                    col2.write(f"{indice} / 5")
-                    col3.progress(indice / 5.0)
-                
-                st.info(f"🚨 **Risque Pollinique Global : {risque_max_actuel} / 5**")
-                
-                st.divider()
-                st.subheader("📅 Prévisions Risque Maximum (1 à 5)")
-                cols_prev = st.columns(len(df_previsions))
-                for index, row in df_previsions.iterrows():
-                    with cols_prev[index % len(cols_prev)]:
-                        st.write(f"**{row['Date'].strftime('%d/%m')}**")
-                        pire_indice_jour = max([calculer_indice_pollen(row.get(k, 0)) for k in traduction_pollens.keys()])
-                        st.metric(label="Pollen Max", value=f"{pire_indice_jour} / 5")
+    # --- SECTION POLLENS (Atmo France) ---
+    st.subheader("🤧 Données Officielles Pollen (RNSA / Atmo)")
 
-                st.divider()
-                st.subheader("🤧 Données Officielles Pollen (RNSA / Atmo)")
-                
-                with st.spinner("Analyse des capteurs de pollens..."):
-                    donnees_brutes = recuperer_donnees_pollen(code_insee)
-                    
-                    if "erreur" in donnees_brutes:
-                        st.error(donnees_brutes["erreur"])
-                    elif "features" in donnees_brutes and len(donnees_brutes["features"]) == 0:
-                        st.info("🌿 Aucun relevé pollinique n'a été publié pour cette zone à cette date.")
-                    else:
-                        donnees_propres = extraire_donnees_pollen(donnees_brutes)
-                        
-                        if donnees_propres:
-                            # Gestion de l'alerte rouge
-                            if donnees_propres['alerte']:
-                                st.error(f"⚠️ ALERTE POLLEN EN COURS : Forte présence de {donnees_propres['responsable']} !")
-                            else:
-                                st.success(f"Données du {donnees_propres['date']} pour {donnees_propres['ville']}")
-                            
-                            # Affichage du score global
-                            st.metric(label="Risque Pollinique Global", value=donnees_propres['risque_global'], delta=f"Niveau {donnees_propres['risque_note']}/5", delta_color="inverse")
-                            
-                            # Affichage détaillé par espèce
-                            col1, col2, col3, col4 = st.columns(4)
-                            col1.metric("Aulne", f"Niveau {donnees_propres['aulne']}")
-                            col2.metric("Bouleau", f"Niveau {donnees_propres['bouleau']}")
-                            col3.metric("Graminées", f"Niveau {donnees_propres['graminees']}")
-                            col4.metric("Ambroisie", f"Niveau {donnees_propres['ambroisie']}")
+    with st.spinner("Analyse des capteurs de pollens..."):
+        donnees_brutes_pollen = recuperer_donnees_pollen(code_insee)
 
-            # ---> SOUS-ONGLET POLLUTION
-            with sous_tab2:
-                st.subheader("Qualité de l'air actuelle")
-                aqi_actuel = donnees_actuelles.get('european_aqi', 0)
-                statut_aqi, _ = evaluer_qualite_air(aqi_actuel)
-                mot_statut = statut_aqi.split(" ")[0]
-                
-                st.metric(label="Indice Européen Global (AQI)", value=f"{int(aqi_actuel)}", delta=mot_statut, delta_color="inverse" if aqi_actuel > 60 else "normal")
-                
-                st.write("---")
-                st.write("**Détail par polluant (Échelle de 1 à 5) :**")
-                
-                dict_polluants = {
-                    'pm10': ('Particules PM10', donnees_actuelles.get('pm10', 0)),
-                    'pm2_5': ('Particules PM2.5', donnees_actuelles.get('pm2_5', 0)),
-                    'ozone': ('Ozone (O3)', donnees_actuelles.get('ozone', 0)),
-                    'no2': ('Dioxyde d\'Azote (NO2)', donnees_actuelles.get('nitrogen_dioxide', 0))
-                }
-
-                risque_max_pollution = 0
-                for cle_api, (nom_fr, valeur_brute) in dict_polluants.items():
-                    indice = calculer_indice_polluant(cle_api, valeur_brute)
-                    if indice > risque_max_pollution: risque_max_pollution = indice
-                    
-                    col1, col2, col3 = st.columns([2, 1, 4])
-                    col1.write(f"**{nom_fr}**")
-                    col2.write(f"{indice} / 5")
-                    col3.progress(indice / 5.0)
-                
-                st.caption("Données normalisées selon les seuils de l'Agence Européenne pour l'Environnement.")
-                
-                st.divider()
-                st.subheader("📅 Prévisions AQI Global")
-                cols_prev_pol = st.columns(len(df_previsions))
-                for index, row in df_previsions.iterrows():
-                    with cols_prev_pol[index % len(cols_prev_pol)]:
-                        st.write(f"**{row['Date'].strftime('%d/%m')}**")
-                        aqi_prev = row.get('european_aqi', 0)
-                        statut_prev, _ = evaluer_qualite_air(aqi_prev)
-                        mot_statut_prev = statut_prev.split(" ")[0]
-                        st.metric(label="AQI Max estimé", value=int(aqi_prev), delta=mot_statut_prev, delta_color="inverse" if aqi_prev > 60 else "normal")
-
-                st.divider()
-                st.subheader("💡 Conseils Santé du Jour")
-                # On génère les conseils intelligents
-                liste_conseils = generer_conseils("Ensoleillé", risque_max_actuel, risque_max_pollution)
-                for conseil in liste_conseils:
-                    st.info(conseil)
-
-                st.divider()
-                st.subheader(f"🇫🇷 Données Officielles Atmo France ({ville_actuelle})")
-                
-                with st.spinner("Récupération des données officielles..."):
-                    donnees_json = recuperer_donnees_atmo(code_insee)
-                    
-                    if "erreur" in donnees_json:
-                        st.error(donnees_json["erreur"])
-                    else:
-                        donnees_propres = extraire_donnees_atmo(donnees_json)
-                        
-                        if donnees_propres:
-                            st.success(f"Données du {donnees_propres['date']} pour {donnees_propres['ville']}")
-                            
-                            # 🎨 Création d'une carte HTML avec la couleur officielle dynamique
-                            st.markdown(
-                                f"""
-                                <div style="text-align: center; padding: 20px; border-radius: 10px; background-color: #1e1e1e; border: 2px solid {donnees_propres['couleur']}; box-shadow: 0px 4px 6px rgba(0,0,0,0.3);">
-                                    <h2 style="color: {donnees_propres['couleur']}; margin: 0; font-size: 2.5em;">{donnees_propres['qualite_texte']}</h2>
-                                    <p style="color: #dddddd; margin: 5px 0 0 0; font-size: 1.2em;">Indice ATMO Global : {donnees_propres['qualite_note']} / 6</p>
-                                </div>
-                                <br>
-                                """,
-                                unsafe_allow_html=True
-                            )
-                            
-                            # Affichage détaillé en colonnes (inchangé)
-                            col1, col2, col3, col4 = st.columns(4)
-                            col1.metric("Particules PM10", f"Note: {donnees_propres['pm10_note']}")
-                            col2.metric("Particules PM2.5", f"Note: {donnees_propres['pm25_note']}")
-                            col3.metric("Dioxyde d'Azote", f"Note: {donnees_propres['no2_note']}")
-                            col4.metric("Ozone (O3)", f"Note: {donnees_propres['o3_note']}")
-                        else:
-                            st.warning("Les données sont vides ou mal formatées.")
-
-
+        if "erreur" in donnees_brutes_pollen:
+            st.error(donnees_brutes_pollen["erreur"])
+        elif "features" in donnees_brutes_pollen and len(donnees_brutes_pollen["features"]) == 0:
+            st.info("🌿 Aucun relevé pollinique n'a été publié pour cette zone à cette date.")
         else:
-            st.error(f"Impossible de trouver les coordonnées pour la ville : {ville_actuelle}.")
-            
-    except Exception as e:
-        st.error(f"Une erreur est survenue lors de la connexion à l'API : {e}")
+            donnees_pollen = extraire_donnees_pollen(donnees_brutes_pollen)
+
+            if donnees_pollen:
+                # Gestion de l'alerte rouge
+                if donnees_pollen['alerte']:
+                    st.error(f"⚠️ ALERTE POLLEN EN COURS : Forte présence de {donnees_pollen['responsable']} !")
+                else:
+                    st.success(f"Données du {donnees_pollen['date']} pour {donnees_pollen['ville']}")
+
+                # Affichage du score global
+                st.metric(label="Risque Pollinique Global", value=donnees_pollen['risque_global'], delta=f"Niveau {donnees_pollen['risque_note']}/5", delta_color="inverse")
+
+                # Affichage détaillé par espèce
+                col1, col2, col3, col4 = st.columns(4)
+                col1.metric("Aulne", f"Niveau {donnees_pollen['aulne']}")
+                col2.metric("Bouleau", f"Niveau {donnees_pollen['bouleau']}")
+                col3.metric("Graminées", f"Niveau {donnees_pollen['graminees']}")
+                col4.metric("Ambroisie", f"Niveau {donnees_pollen['ambroisie']}")
+
+    st.divider()
+
+    # --- SECTION POLLUTION (Atmo France) ---
+    st.subheader(f"🇲🇶 Qualité de l'air — Atmo France ({ville_actuelle})")
+
+    with st.spinner("Récupération des données officielles..."):
+        donnees_json_atmo = recuperer_donnees_atmo(code_insee)
+
+        if "erreur" in donnees_json_atmo:
+            st.error(donnees_json_atmo["erreur"])
+        else:
+            donnees_atmo = extraire_donnees_atmo(donnees_json_atmo)
+
+            if donnees_atmo:
+                st.success(f"Données du {donnees_atmo['date']} pour {donnees_atmo['ville']}")
+
+                # Carte HTML avec la couleur officielle dynamique
+                st.markdown(
+                    f"""
+                    <div style="text-align: center; padding: 20px; border-radius: 10px; background-color: #1e1e1e; border: 2px solid {donnees_atmo['couleur']}; box-shadow: 0px 4px 6px rgba(0,0,0,0.3);">
+                        <h2 style="color: {donnees_atmo['couleur']}; margin: 0; font-size: 2.5em;">{donnees_atmo['qualite_texte']}</h2>
+                        <p style="color: #dddddd; margin: 5px 0 0 0; font-size: 1.2em;">Indice ATMO Global : {donnees_atmo['qualite_note']} / 6</p>
+                    </div>
+                    <br>
+                    """,
+                    unsafe_allow_html=True
+                )
+
+                # Détail par polluant
+                col1, col2, col3, col4 = st.columns(4)
+                col1.metric("Particules PM10", f"Note: {donnees_atmo['pm10_note']}")
+                col2.metric("Particules PM2.5", f"Note: {donnees_atmo['pm25_note']}")
+                col3.metric("Dioxyde d'Azote", f"Note: {donnees_atmo['no2_note']}")
+                col4.metric("Ozone (O3)", f"Note: {donnees_atmo['o3_note']}")
+            else:
+                st.warning("Les données sont vides ou mal formatées.")
+
+    st.divider()
+
+    # --- SECTION CONSEILS SANTÉ ---
+    st.subheader("💡 Conseils Santé du Jour")
+    # On récupère les notes de risque depuis les données Atmo déjà chargées
+    risque_pollen = donnees_pollen.get('risque_note', 0) if donnees_pollen else 0
+    risque_pollution = donnees_atmo.get('qualite_note', 0) if donnees_atmo else 0
+    liste_conseils = generer_conseils(risque_pollen, risque_pollution)
+    for conseil in liste_conseils:
+        st.info(conseil)
 
 # --- CONTENU DE L'ONGLET 2 : JOURNAL ---
 with tab2:

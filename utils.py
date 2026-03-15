@@ -1,4 +1,3 @@
-import pandas as pd
 import requests
 import streamlit as st
 import datetime
@@ -108,69 +107,21 @@ def recuperer_donnees_pollen(code_insee="69123"):
         return {"erreur": str(e)}
 
 
-# --- ALGORITHMES DE NORMALISATION ---
-def calculer_indice_pollen(valeur_brute):
-    if pd.isna(valeur_brute) or valeur_brute <= 0: return 0
-    elif valeur_brute < 10: return 1  
-    elif valeur_brute < 50: return 2  
-    elif valeur_brute < 100: return 3 
-    elif valeur_brute < 500: return 4 
-    else: return 5                    
-
-def calculer_indice_polluant(polluant, valeur_brute):
-    if pd.isna(valeur_brute) or valeur_brute < 0: return 0
-    if polluant == 'pm10':
-        if valeur_brute <= 20: return 1
-        elif valeur_brute <= 40: return 2
-        elif valeur_brute <= 50: return 3
-        elif valeur_brute <= 100: return 4
-        else: return 5
-    elif polluant == 'pm2_5':
-        if valeur_brute <= 10: return 1
-        elif valeur_brute <= 20: return 2
-        elif valeur_brute <= 25: return 3
-        elif valeur_brute <= 50: return 4
-        else: return 5
-    elif polluant == 'ozone':
-        if valeur_brute <= 50: return 1
-        elif valeur_brute <= 100: return 2
-        elif valeur_brute <= 130: return 3
-        elif valeur_brute <= 240: return 4
-        else: return 5
-    elif polluant == 'no2':
-        if valeur_brute <= 40: return 1
-        elif valeur_brute <= 90: return 2
-        elif valeur_brute <= 120: return 3
-        elif valeur_brute <= 230: return 4
-        else: return 5
-    return 0
-
-def evaluer_qualite_air(aqi):
-    if pd.isna(aqi): return "Inconnu", 0
-    elif aqi <= 20: return "Bon (1/5)", aqi
-    elif aqi <= 40: return "Moyen (2/5)", aqi
-    elif aqi <= 60: return "Dégradé (3/5)", aqi
-    elif aqi <= 80: return "Mauvais (4/5)", aqi
-    else: return "Très Mauvais (5/5)", aqi
-
 # --- EXPERTISE SANTÉ ---
-def generer_conseils(meteo, risque_pollen, risque_pollution):
-    """Génère des conseils basés sur la documentation officielle."""
+def generer_conseils(risque_pollen, risque_pollution):
+    """Génère des conseils basés sur les niveaux de risque pollen et pollution (Atmo France)."""
     conseils = []
-    
-    if meteo == "Pluvieux":
-        conseils.append("🌧️ **Météo :** Tu respires mieux grâce à la pluie ! Elle lessive l'air, en entraînant les pollens vers le sol.")
-    elif meteo in ["Ensoleillé", "Venteux"] and risque_pollen >= 2:
-        conseils.append("🌬️ **Pollens :** Le vent favorise la dispersion. Évite de faire sécher le linge dehors, pour ne pas que les pollens se déposent sur le linge humide.")
-        
+
     if risque_pollen >= 3:
-        conseils.append("🚿 **Routine :** Brosse ou rince tes cheveux le soir, les pollens s'y déposent en grand nombre.")
-        
+        conseils.append("🌬️ **Pollens :** Le risque pollinique est élevé. Évite de faire sécher le linge dehors et brosse ou rince tes cheveux le soir.")
+    elif risque_pollen >= 1:
+        conseils.append("🤧 **Pollens :** Risque pollinique modéré. Reste attentif à tes symptômes.")
+
     if risque_pollution >= 3:
-        conseils.append("⚠️ **Alerte :** La pollution de l'air exacerbe les allergies aux pollens et te rend plus sensible.")
-    
+        conseils.append("⚠️ **Pollution :** La pollution de l'air exacerbe les allergies aux pollens et te rend plus sensible.")
+
     conseils.append("🪟 **Maison :** N'oublie pas : 10 min d'aération pour renouveler l'air d'une pièce.")
-    
+
     return conseils
 
 
