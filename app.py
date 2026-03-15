@@ -251,10 +251,10 @@ with tab3:
             hover_data=["Meteo", "Symptomes_Specifiques", "Traitement_Pris"]
         )
         fig.update_layout(yaxis=dict(range=[0, 10.5]), hovermode="x unified")
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
         st.subheader("🗂️ Mes données enregistrées")
-        st.dataframe(df, use_container_width=True)
+        st.dataframe(df, width="stretch")
         
         st.subheader("🗑️ Gérer mes données")
         with st.expander("Clique ici si tu souhaites supprimer une saisie"):
