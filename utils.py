@@ -7,7 +7,7 @@ import datetime
 def obtenir_code_insee(nom_ville):
     """Convertit un nom de ville en code INSEE via l'API Geo du gouvernement."""
     try:
-        url = f"https://geo.api.gouv.fr/communes?nom={nom_ville}&fields=code&format=json&limit=1"
+        url = f"https://geo.api.gouv.fr/communes?nom={nom_ville}&fields=code&format=json&limit=1&boost=population"
         reponse = requests.get(url, timeout=10)
         if reponse.status_code == 200:
             resultats = reponse.json()

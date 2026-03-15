@@ -24,6 +24,22 @@ sheet = gc.open("Base_Pollen")
 ws_journal = sheet.worksheet("Journal")
 ws_profil = sheet.worksheet("Profil")
 
+# --- FONCTIONS CACHÉES POUR LIMITER LES APPELS GOOGLE SHEETS ---
+@st.cache_data(ttl=60)
+def charger_profil(_ws_profil):
+    """Charge le profil depuis Google Sheets (caché 60s)."""
+    return _ws_profil.get_all_records()
+
+@st.cache_data(ttl=60)
+def charger_journal(_ws_journal):
+    """Charge l'historique du journal depuis Google Sheets (caché 60s)."""
+    return _ws_journal.get_all_records()
+
+@st.cache_data(ttl=300)
+def verifier_entetes(_ws_journal):
+    """Vérifie si la feuille Journal a des données (caché 5min)."""
+    return _ws_journal.get_all_values()
+
 # --- VÉRIFICATION DES EN-TÊTES DU JOURNAL ---
 EN_TETES_JOURNAL = [
     "Date", "Meteo", "Activite", "Sommeil", "Symptomes_Globaux",
@@ -31,11 +47,12 @@ EN_TETES_JOURNAL = [
     "Nom_Medicament", "Moment_Prise", "Duree_Traitement"
 ]
 # Si la feuille est vide, on insère les en-têtes automatiquement
-if not ws_journal.get_all_values():
+if not verifier_entetes(ws_journal):
     ws_journal.append_row(EN_TETES_JOURNAL)
+    st.cache_data.clear()
 
 # --- CHARGEMENT DU PROFIL DEPUIS GOOGLE SHEETS ---
-records_profil = ws_profil.get_all_records()
+records_profil = charger_profil(ws_profil)
 if len(records_profil) > 0:
     ville_actuelle = str(records_profil[0].get("ville", "Lyon"))
     allergies_brutes = str(records_profil[0].get("allergies", ""))
@@ -63,6 +80,7 @@ with tab1:
     col_btn, _ = st.columns([1, 3])
     with col_btn:
         if st.button("🔄 Actualiser"):
+            st.cache_data.clear()
             st.rerun()
 
     # Initialisation des variables pour les conseils (fallback si API indisponible)
@@ -181,7 +199,6 @@ with tab2:
         soumis = st.form_submit_button("💾 Enregistrer mon journal")
 
         if soumis:
-            # On envoie les données directement dans l'onglet "Journal" du Google Sheets !
             nouvelle_ligne = [
                 str(date_saisie),
                 meteo,
@@ -196,6 +213,7 @@ with tab2:
                 duree_traitement
             ]
             ws_journal.append_row(nouvelle_ligne)
+            st.cache_data.clear()
             st.success("🎉 Tes données ont bien été enregistrées en ligne dans ton Google Sheets !")
 
 # --- CONTENU DE L'ONGLET 3 : HISTORIQUE ET PROFIL ---
@@ -210,18 +228,17 @@ with tab3:
         
         submit_profil = st.form_submit_button("💾 Sauvegarder mon profil")
         if submit_profil:
-            # On efface l'ancien profil et on enregistre le nouveau
             ws_profil.clear()
-            ws_profil.append_row(["ville", "allergies"]) # On remet les en-têtes
+            ws_profil.append_row(["ville", "allergies"])
             ws_profil.append_row([ville, ", ".join(allergies)])
+            st.cache_data.clear()
             st.success("Ton profil a été mis à jour dans le Cloud !")
             st.info("💡 Pense à rafraîchir la page pour mettre à jour les alertes de ta ville.")
 
     st.divider()
     
     st.subheader("📊 Évolution de mes symptômes")
-    # On lit les données depuis Google Sheets
-    records_journal = ws_journal.get_all_records()
+    records_journal = charger_journal(ws_journal)
     
     if len(records_journal) > 0:
         df = pd.DataFrame(records_journal)
@@ -247,16 +264,15 @@ with tab3:
                 bouton_supprimer = st.form_submit_button("❌ Supprimer définitivement")
                 
                 if bouton_supprimer and date_choisie != "Choisir...":
-                    # On garde tout ce qui ne correspond pas à la date choisie
                     df_filtre = df[df['Date'].dt.strftime('%Y-%m-%d') != date_choisie]
-                    df_filtre['Date'] = df_filtre['Date'].dt.strftime('%Y-%m-%d') # On remet la date en texte pour Google Sheets
+                    df_filtre['Date'] = df_filtre['Date'].dt.strftime('%Y-%m-%d')
                     
-                    # On efface tout l'onglet et on le remplit avec les données filtrées
                     ws_journal.clear()
                     en_tetes = df_filtre.columns.values.tolist()
                     valeurs = df_filtre.values.tolist()
                     ws_journal.update([en_tetes] + valeurs)
                     
+                    st.cache_data.clear()
                     st.success(f"L'entrée du {date_choisie} a été supprimée avec succès !")
                     st.rerun() 
     else:
