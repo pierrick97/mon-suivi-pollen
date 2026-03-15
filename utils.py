@@ -3,6 +3,24 @@ import requests
 import streamlit as st
 import datetime
 
+# --- CONVERSION VILLE → CODE INSEE ---
+@st.cache_data(ttl=86400)
+def obtenir_code_insee(nom_ville):
+    """Convertit un nom de ville en code INSEE via l'API Geo du gouvernement."""
+    try:
+        url = f"https://geo.api.gouv.fr/communes?nom={nom_ville}&fields=code&format=json&limit=1"
+        reponse = requests.get(url, timeout=10)
+        if reponse.status_code == 200:
+            resultats = reponse.json()
+            if resultats and len(resultats) > 0:
+                return resultats[0]["code"]
+            else:
+                return None
+        else:
+            return None
+    except Exception:
+        return None
+
 # --- CONNEXION AUTOMATIQUE À ATMO FRANCE ---
 @st.cache_data(ttl=3600)
 def obtenir_token_atmo():
@@ -32,7 +50,7 @@ def obtenir_token_atmo():
         return None
 
 @st.cache_data(ttl=3600)
-def recuperer_donnees_atmo():
+def recuperer_donnees_atmo(code_insee="69123"):
     """Utilise le token pour télécharger les données officielles."""
     token = obtenir_token_atmo()
     if not token:
@@ -42,7 +60,7 @@ def recuperer_donnees_atmo():
     hier = (datetime.date.today() - datetime.timedelta(days=1)).strftime("%Y-%m-%d")
     
     # La syntaxe EXACTE recommandée par la FAQ Atmo France ! [cite: 308, 309, 310]
-    filtre_json = '{"code_zone":{"operator":"=","value":"69123"},"date_ech":{"operator":"=","value":"' + hier + '"}}'
+    filtre_json = '{"code_zone":{"operator":"=","value":"' + code_insee + '"},"date_ech":{"operator":"=","value":"' + hier + '"}}'
     url = f"https://admindata.atmo-france.org/api/data/112/{filtre_json}?withGeom=false"
     
     headers = {"Authorization": f"Bearer {token}"}
@@ -62,7 +80,7 @@ def recuperer_donnees_atmo():
         return {"erreur": str(e)}
 
 @st.cache_data(ttl=3600)
-def recuperer_donnees_pollen():
+def recuperer_donnees_pollen(code_insee="69123"):
     """Utilise le token pour télécharger les données officielles de pollen (ID 122)."""
     token = obtenir_token_atmo()
     if not token:
@@ -72,7 +90,7 @@ def recuperer_donnees_pollen():
     hier = (datetime.date.today() - datetime.timedelta(days=1)).strftime("%Y-%m-%d")
     
     # On utilise l'ID 122 (Pollen) et le code zone (commune) 69123 (Lyon)
-    filtre_json = '{"code_zone":{"operator":"=","value":"69123"},"date_ech":{"operator":"=","value":"' + hier + '"}}'
+    filtre_json = '{"code_zone":{"operator":"=","value":"' + code_insee + '"},"date_ech":{"operator":"=","value":"' + hier + '"}}'
     url = f"https://admindata.atmo-france.org/api/data/122/{filtre_json}?withGeom=false"
     
     headers = {"Authorization": f"Bearer {token}"}

@@ -5,7 +5,7 @@ import json
 import requests
 import plotly.express as px
 import gspread # NOUVEL OUTIL POUR GOOGLE SHEETS
-from utils import calculer_indice_pollen, calculer_indice_polluant, evaluer_qualite_air, recuperer_donnees_atmo, recuperer_donnees_pollen, generer_conseils, extraire_donnees_atmo, extraire_donnees_pollen   
+from utils import calculer_indice_pollen, calculer_indice_polluant, evaluer_qualite_air, recuperer_donnees_atmo, recuperer_donnees_pollen, generer_conseils, extraire_donnees_atmo, extraire_donnees_pollen, obtenir_code_insee
 
 # 1. Configuration de la page web
 st.set_page_config(page_title="Mon Suivi Pollen", page_icon="🤧", layout="centered")
@@ -44,6 +44,11 @@ if len(records_profil) > 0:
 else:
     ville_actuelle = "Lyon"
     allergies_actuelles = []
+
+# --- RÉSOLUTION DU CODE INSEE ---
+code_insee = obtenir_code_insee(ville_actuelle)
+if not code_insee:
+    code_insee = "69123"  # Fallback sur Lyon
 
 # 2. Titre principal
 st.title("🌿 Mon Suivi Allergies & Pollen")
@@ -120,7 +125,7 @@ with tab1:
                 st.subheader("🤧 Données Officielles Pollen (RNSA / Atmo)")
                 
                 with st.spinner("Analyse des capteurs de pollens..."):
-                    donnees_brutes = recuperer_donnees_pollen()
+                    donnees_brutes = recuperer_donnees_pollen(code_insee)
                     
                     if "erreur" in donnees_brutes:
                         st.error(donnees_brutes["erreur"])
@@ -196,10 +201,10 @@ with tab1:
                     st.info(conseil)
 
                 st.divider()
-                st.subheader("🇫🇷 Données Officielles Atmo France (Lyon)")
+                st.subheader(f"🇫🇷 Données Officielles Atmo France ({ville_actuelle})")
                 
                 with st.spinner("Récupération des données officielles..."):
-                    donnees_json = recuperer_donnees_atmo()
+                    donnees_json = recuperer_donnees_atmo(code_insee)
                     
                     if "erreur" in donnees_json:
                         st.error(donnees_json["erreur"])
