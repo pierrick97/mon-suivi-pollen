@@ -102,7 +102,7 @@ with tab1:
     st.divider()
 
     # --- SECTION POLLUTION (Atmo France) ---
-    st.subheader(f"🇲🇶 Qualité de l'air — Atmo France ({ville_actuelle})")
+    st.subheader(f"🇫🇷 Qualité de l'air — Atmo France ({ville_actuelle})")
 
     with st.spinner("Récupération des données officielles..."):
         donnees_json_atmo = recuperer_donnees_atmo(code_insee)
@@ -134,7 +134,7 @@ with tab1:
                 col3.metric("Dioxyde d'Azote", f"Note: {donnees_atmo['no2_note']}")
                 col4.metric("Ozone (O3)", f"Note: {donnees_atmo['o3_note']}")
             else:
-                st.warning("Les données sont vides ou mal formatées.")
+                st.info(f"📡 Aucune donnée de qualité de l'air n'est disponible pour {ville_actuelle} (code INSEE : {code_insee}). La couverture Atmo peut varier selon les zones.")
 
     st.divider()
 
